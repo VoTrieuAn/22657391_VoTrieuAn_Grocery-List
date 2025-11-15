@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Text,
   View,
@@ -15,13 +15,14 @@ import { useSQLiteContext } from "expo-sqlite";
 import { Grocery } from "@/types/grocery.type";
 import { getAllGrocery, updateGrocery, createGrocery } from "@/dbs/db";
 import GroceryItem from "@/compoents/GroceryItem";
-import { TextInput, Button } from "react-native-paper";
+import { TextInput, Button, Searchbar } from "react-native-paper";
 
 export default function Page() {
   const db = useSQLiteContext();
   const [groceries, setGroceries] = useState<Grocery[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
@@ -62,47 +63,62 @@ export default function Page() {
     loadGroceries();
   }, []);
 
-  // Handle refresh
-  const onRefresh = () => {
+  // Filter groceries based on search query (optimized with useMemo)
+  const filteredGroceries = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return groceries;
+    }
+
+    const lowerQuery = searchQuery.toLowerCase().trim();
+    return groceries.filter((item) =>
+      item.name.toLowerCase().includes(lowerQuery)
+    );
+  }, [groceries, searchQuery]);
+
+  // Handle refresh (optimized with useCallback)
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadGroceries();
-  };
+  }, []);
 
-  // Toggle bought status
-  const handleToggleBought = async (id: number, bought: boolean) => {
-    try {
-      const item = groceries.find((g) => g.id === id);
-      if (item) {
-        await updateGrocery(db, { ...item, bought });
-        // Update local state
-        setGroceries((prev) =>
-          prev.map((g) => (g.id === id ? { ...g, bought } : g))
-        );
+  // Toggle bought status (optimized with useCallback)
+  const handleToggleBought = useCallback(
+    async (id: number, bought: boolean) => {
+      try {
+        const item = groceries.find((g) => g.id === id);
+        if (item) {
+          await updateGrocery(db, { ...item, bought });
+          // Update local state
+          setGroceries((prev) =>
+            prev.map((g) => (g.id === id ? { ...g, bought } : g))
+          );
+        }
+      } catch (error) {
+        console.error("Error updating grocery:", error);
       }
-    } catch (error) {
-      console.error("Error updating grocery:", error);
-    }
-  };
+    },
+    [groceries, db]
+  );
 
   // Reset form
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setNewItemName("");
     setNewItemQuantity("1");
     setNewItemCategory("");
     setNameError("");
-  };
+  }, []);
 
   // Open modal
-  const handleOpenModal = () => {
+  const handleOpenModal = useCallback(() => {
     resetForm();
     setModalVisible(true);
-  };
+  }, [resetForm]);
 
   // Close modal
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     resetForm();
-  };
+  }, [resetForm]);
 
   // Validate and save new item
   const handleSaveItem = async () => {
@@ -140,25 +156,25 @@ export default function Page() {
     }
   };
 
-  // Open edit modal
-  const handleOpenEditModal = (item: Grocery) => {
+  // Open edit modal (optimized with useCallback)
+  const handleOpenEditModal = useCallback((item: Grocery) => {
     setEditingItem(item);
     setEditItemName(item.name);
     setEditItemQuantity(item.quantity.toString());
     setEditItemCategory(item.category || "");
     setEditNameError("");
     setEditModalVisible(true);
-  };
+  }, []);
 
-  // Close edit modal
-  const handleCloseEditModal = () => {
+  // Close edit modal (optimized with useCallback)
+  const handleCloseEditModal = useCallback(() => {
     setEditModalVisible(false);
     setEditingItem(null);
     setEditItemName("");
     setEditItemQuantity("1");
     setEditItemCategory("");
     setEditNameError("");
-  };
+  }, []);
 
   // Validate and update item
   const handleUpdateItem = async () => {
@@ -200,13 +216,18 @@ export default function Page() {
     }
   };
 
-  // Empty state component
-  const renderEmptyState = () => (
-    <View className="flex-1 items-center justify-center p-8">
-      <Text className="text-lg text-gray-500 text-center">
-        Danh sách trống, thêm món cần mua nhé!
-      </Text>
-    </View>
+  // Empty state component (optimized with useCallback)
+  const renderEmptyState = useCallback(
+    () => (
+      <View className="flex-1 items-center justify-center p-8">
+        <Text className="text-lg text-gray-500 text-center">
+          {searchQuery.trim()
+            ? `Không tìm thấy món nào với "${searchQuery}"`
+            : "Danh sách trống, thêm món cần mua nhé!"}
+        </Text>
+      </View>
+    ),
+    [searchQuery]
   );
 
   // Loading state
@@ -230,8 +251,25 @@ export default function Page() {
         </Text>
       </View>
 
+      {/* Search Bar */}
+      <View className="px-4 pt-3 pb-2 bg-gray-50">
+        <Searchbar
+          placeholder="Tìm kiếm món cần mua..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          icon="magnify"
+          clearIcon="close"
+          style={{ elevation: 2 }}
+        />
+        {searchQuery.trim() && (
+          <Text className="text-xs text-gray-600 mt-2">
+            Tìm thấy {filteredGroceries.length} kết quả
+          </Text>
+        )}
+      </View>
+
       <FlatList
-        data={groceries}
+        data={filteredGroceries}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <GroceryItem
@@ -244,7 +282,7 @@ export default function Page() {
         refreshing={refreshing}
         onRefresh={onRefresh}
         contentContainerStyle={
-          groceries.length === 0 ? { flex: 1 } : { paddingBottom: 80 }
+          filteredGroceries.length === 0 ? { flex: 1 } : { paddingBottom: 80 }
         }
       />
 
