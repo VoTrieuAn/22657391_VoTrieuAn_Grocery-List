@@ -1,4 +1,4 @@
-import { Transaction } from "@/types/transaction.type";
+import { Transaction } from "@/types/grocery.type";
 import { useRouter } from "expo-router";
 import { View, Text } from "react-native";
 import { Button, Card } from "react-native-paper";

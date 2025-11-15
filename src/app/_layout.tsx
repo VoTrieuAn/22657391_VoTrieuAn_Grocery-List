@@ -3,7 +3,7 @@ import "../global.css";
 import { Slot, Stack } from "expo-router";
 import { Text } from "react-native";
 import { SQLiteProvider } from "expo-sqlite";
-import { initTable } from "@/dbs";
+import { initTable } from "@/dbs/db";
 
 export default function Layout() {
   return (
