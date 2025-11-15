@@ -1,24 +1,40 @@
 import { Grocery } from "@/types/grocery.type";
 import { View, Text, TouchableOpacity } from "react-native";
-import { Card, Checkbox } from "react-native-paper";
+import { Card, Checkbox, IconButton } from "react-native-paper";
 
 type Props = {
   data: Grocery;
   onToggleBought?: (id: number, bought: boolean) => void;
-  onEdit?: (id: number) => void;
+  onEdit?: (item: Grocery) => void;
   onDelete?: (id: number) => void;
 };
 
-const GroceryItem = ({ data, onToggleBought }: Props) => {
+const GroceryItem = ({ data, onToggleBought, onEdit }: Props) => {
   const handleToggle = () => {
     if (onToggleBought) {
       onToggleBought(data.id, !data.bought);
     }
   };
 
+  const handleEdit = () => {
+    if (onEdit) {
+      onEdit(data);
+    }
+  };
+
+  const handleLongPress = () => {
+    if (onEdit) {
+      onEdit(data);
+    }
+  };
+
   return (
     <View className="px-4 py-2">
-      <TouchableOpacity onPress={handleToggle} activeOpacity={0.7}>
+      <TouchableOpacity
+        onPress={handleToggle}
+        onLongPress={handleLongPress}
+        activeOpacity={0.7}
+      >
         <Card>
           <Card.Content>
             <View className="flex-row items-center justify-between">
@@ -45,10 +61,18 @@ const GroceryItem = ({ data, onToggleBought }: Props) => {
                   Trạng thái: {data.bought ? "Đã mua ✓" : "Chưa mua"}
                 </Text>
               </View>
-              <Checkbox
-                status={data.bought ? "checked" : "unchecked"}
-                onPress={handleToggle}
-              />
+              <View className="flex-row items-center">
+                <IconButton
+                  icon="pencil"
+                  size={20}
+                  onPress={handleEdit}
+                  iconColor="#60a5fa"
+                />
+                <Checkbox
+                  status={data.bought ? "checked" : "unchecked"}
+                  onPress={handleToggle}
+                />
+              </View>
             </View>
           </Card.Content>
         </Card>

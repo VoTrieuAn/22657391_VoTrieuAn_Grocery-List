@@ -30,6 +30,14 @@ export default function Page() {
   const [newItemCategory, setNewItemCategory] = useState("");
   const [nameError, setNameError] = useState("");
 
+  // Edit modal states
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState<Grocery | null>(null);
+  const [editItemName, setEditItemName] = useState("");
+  const [editItemQuantity, setEditItemQuantity] = useState("1");
+  const [editItemCategory, setEditItemCategory] = useState("");
+  const [editNameError, setEditNameError] = useState("");
+
   // Load data from SQLite
   const loadGroceries = async () => {
     try {
@@ -132,6 +140,66 @@ export default function Page() {
     }
   };
 
+  // Open edit modal
+  const handleOpenEditModal = (item: Grocery) => {
+    setEditingItem(item);
+    setEditItemName(item.name);
+    setEditItemQuantity(item.quantity.toString());
+    setEditItemCategory(item.category || "");
+    setEditNameError("");
+    setEditModalVisible(true);
+  };
+
+  // Close edit modal
+  const handleCloseEditModal = () => {
+    setEditModalVisible(false);
+    setEditingItem(null);
+    setEditItemName("");
+    setEditItemQuantity("1");
+    setEditItemCategory("");
+    setEditNameError("");
+  };
+
+  // Validate and update item
+  const handleUpdateItem = async () => {
+    // Validate name
+    if (!editItemName.trim()) {
+      setEditNameError("Tên món không được để trống!");
+      Alert.alert("Lỗi", "Vui lòng nhập tên món cần mua!");
+      return;
+    }
+
+    if (!editingItem) return;
+
+    try {
+      const updatedGrocery: Grocery = {
+        ...editingItem,
+        name: editItemName.trim(),
+        quantity: parseInt(editItemQuantity) || 1,
+        category: editItemCategory.trim(),
+      };
+
+      // Update in database
+      await updateGrocery(db, updatedGrocery);
+
+      // Update local state
+      setGroceries((prev) =>
+        prev.map((item) =>
+          item.id === updatedGrocery.id ? updatedGrocery : item
+        )
+      );
+
+      // Close modal
+      handleCloseEditModal();
+
+      // Show success message
+      Alert.alert("Thành công", "Đã cập nhật món!");
+    } catch (error) {
+      console.error("Error updating grocery:", error);
+      Alert.alert("Lỗi", "Không thể cập nhật món. Vui lòng thử lại!");
+    }
+  };
+
   // Empty state component
   const renderEmptyState = () => (
     <View className="flex-1 items-center justify-center p-8">
@@ -166,7 +234,11 @@ export default function Page() {
         data={groceries}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <GroceryItem data={item} onToggleBought={handleToggleBought} />
+          <GroceryItem
+            data={item}
+            onToggleBought={handleToggleBought}
+            onEdit={handleOpenEditModal}
+          />
         )}
         ListEmptyComponent={renderEmptyState}
         refreshing={refreshing}
@@ -270,6 +342,93 @@ export default function Page() {
                     style={{ flex: 1 }}
                   >
                     Lưu
+                  </Button>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Edit Item Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseEditModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1"
+        >
+          <View className="flex-1 justify-end bg-black/50">
+            <View className="bg-white rounded-t-3xl p-6 pb-8">
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-2xl font-bold text-gray-800">
+                  Chỉnh sửa món
+                </Text>
+                <TouchableOpacity onPress={handleCloseEditModal}>
+                  <Text className="text-gray-500 text-2xl">×</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View className="gap-4">
+                  {/* Name Input */}
+                  <View>
+                    <TextInput
+                      label="Tên món *"
+                      value={editItemName}
+                      onChangeText={(text) => {
+                        setEditItemName(text);
+                        setEditNameError("");
+                      }}
+                      mode="outlined"
+                      error={!!editNameError}
+                      placeholder="Ví dụ: Sữa tươi, Rau cải..."
+                    />
+                    {editNameError ? (
+                      <Text className="text-red-500 text-xs mt-1">
+                        {editNameError}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  {/* Quantity Input */}
+                  <TextInput
+                    label="Số lượng"
+                    value={editItemQuantity}
+                    onChangeText={setEditItemQuantity}
+                    mode="outlined"
+                    keyboardType="numeric"
+                    placeholder="Mặc định: 1"
+                  />
+
+                  {/* Category Input */}
+                  <TextInput
+                    label="Danh mục (tùy chọn)"
+                    value={editItemCategory}
+                    onChangeText={setEditItemCategory}
+                    mode="outlined"
+                    placeholder="Ví dụ: Dairy, Protein, Bakery..."
+                  />
+                </View>
+
+                {/* Action Buttons */}
+                <View className="flex-row gap-3 mt-6">
+                  <Button
+                    mode="outlined"
+                    onPress={handleCloseEditModal}
+                    style={{ flex: 1 }}
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={handleUpdateItem}
+                    style={{ flex: 1 }}
+                  >
+                    Cập nhật
                   </Button>
                 </View>
               </ScrollView>
