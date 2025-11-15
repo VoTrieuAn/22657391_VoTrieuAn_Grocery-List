@@ -1,18 +1,26 @@
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import "../global.css";
-import { Slot, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import { Text } from "react-native";
 import { SQLiteProvider } from "expo-sqlite";
-import { initTable } from "@/dbs/db";
+import { initTable, seedSampleGroceries } from "@/dbs/db";
 
 export default function Layout() {
+  // Initialize database and seed sample data
+  const initializeDatabase = async (db: any) => {
+    try {
+      await initTable(db);
+      await seedSampleGroceries(db);
+      console.log("✅ Database initialized and seeded");
+    } catch (error) {
+      console.error("❌ Error initializing database:", error);
+    }
+  };
+
   return (
-    <SQLiteProvider databaseName="moneylogapp" onInit={initTable}>
+    <SQLiteProvider databaseName="grocery.db" onInit={initializeDatabase}>
       <SafeAreaProvider>
         <SafeAreaView className="flex flex-1">
-          <Text className="text-3xl font-bold text-center text-blue-400 border-b-2 border-blue-400 shadow-inherit">
-            MONEY LOG
-          </Text>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="(tabs)" />
