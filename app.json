@@ -1,19 +1,45 @@
 {
-  "scheme": "acme",
-  "userInterfaceStyle": "automatic",
-  "orientation": "default",
-  "web": {
-    "output": "static"
-  },
-  "plugins": [
-    [
-      "expo-router",
-      {
-        "origin": "https://n"
-      }
+  "expo": {
+    "name": "Grocery List",
+    "slug": "grocery-list",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "grocerylist",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#60a5fa"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.votrieuan2004.grocerylist"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#60a5fa"
+      },
+      "package": "com.votrieuan2004.grocerylist"
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://grocerylist.app"
+        }
+      ],
+      "expo-sqlite"
     ],
-    "expo-sqlite"
-  ],
-  "name": "MoneyLog",
-  "slug": "MoneyLog"
+    "extra": {
+      "router": {
+        "origin": "https://grocerylist.app"
+      },
+      "eas": {
+        "projectId": "73476127-efa2-40d4-963d-dd45b110f9bd"
+      }
+    }
+  }
 }

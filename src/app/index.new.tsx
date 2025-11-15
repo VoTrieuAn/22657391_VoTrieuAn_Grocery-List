@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Text,
   View,
@@ -13,21 +13,28 @@ import {
 } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
 import { Grocery } from "@/types/grocery.type";
-import {
-  getAllGrocery,
-  updateGrocery,
-  createGrocery,
-  deleteGrocery,
-} from "@/dbs/db";
 import GroceryItem from "@/compoents/GroceryItem";
-import { TextInput, Button, Searchbar } from "react-native-paper";
+import { TextInput, Button, Searchbar, Icon } from "react-native-paper";
+import { useGroceryItems } from "@/hooks/useGroceryItems";
 
 export default function Page() {
   const db = useSQLiteContext();
-  const [groceries, setGroceries] = useState<Grocery[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // Use custom hook for grocery logic
+  const {
+    filteredGroceries,
+    loading,
+    refreshing,
+    importing,
+    searchQuery,
+    setSearchQuery,
+    onRefresh,
+    toggleBought,
+    addGrocery,
+    updateGroceryItem,
+    deleteGroceryItem,
+    importFromAPI,
+  } = useGroceryItems(db);
 
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
@@ -44,109 +51,7 @@ export default function Page() {
   const [editItemCategory, setEditItemCategory] = useState("");
   const [editNameError, setEditNameError] = useState("");
 
-  // API import states
-  const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-
-  // Load data from SQLite
-  const loadGroceries = async () => {
-    try {
-      const data = await getAllGrocery(db);
-      // Convert bought from number to boolean and created_at to Date
-      const formattedData: Grocery[] = data.map((item: any) => ({
-        ...item,
-        bought: item.bought === 1,
-        created_at: new Date(item.created_at),
-      }));
-      setGroceries(formattedData);
-    } catch (error) {
-      console.error("Error loading groceries:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // Initial load
-  useEffect(() => {
-    loadGroceries();
-  }, []);
-
-  // Filter groceries based on search query (optimized with useMemo)
-  const filteredGroceries = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return groceries;
-    }
-
-    const lowerQuery = searchQuery.toLowerCase().trim();
-    return groceries.filter((item) =>
-      item.name.toLowerCase().includes(lowerQuery)
-    );
-  }, [groceries, searchQuery]);
-
-  // Handle refresh (optimized with useCallback)
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadGroceries();
-  }, []);
-
-  // Toggle bought status (optimized with useCallback)
-  const handleToggleBought = useCallback(
-    async (id: number, bought: boolean) => {
-      try {
-        const item = groceries.find((g) => g.id === id);
-        if (item) {
-          await updateGrocery(db, { ...item, bought });
-          // Update local state
-          setGroceries((prev) =>
-            prev.map((g) => (g.id === id ? { ...g, bought } : g))
-          );
-        }
-      } catch (error) {
-        console.error("Error updating grocery:", error);
-      }
-    },
-    [groceries, db]
-  );
-
-  // Delete grocery with confirmation (optimized with useCallback)
-  const handleDeleteGrocery = useCallback(
-    (id: number, name: string) => {
-      Alert.alert(
-        "Xác nhận xóa",
-        `Bạn có chắc chắn muốn xóa món "${name}" không?`,
-        [
-          {
-            text: "Hủy",
-            style: "cancel",
-          },
-          {
-            text: "Xóa",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                // Delete from database
-                await deleteGrocery(db, id);
-
-                // Update local state
-                setGroceries((prev) => prev.filter((item) => item.id !== id));
-
-                // Show success message
-                Alert.alert("Thành công", "Đã xóa món khỏi danh sách!");
-              } catch (error) {
-                console.error("Error deleting grocery:", error);
-                Alert.alert("Lỗi", "Không thể xóa món. Vui lòng thử lại!");
-              }
-            },
-          },
-        ],
-        { cancelable: true }
-      );
-    },
-    [db]
-  );
-
-  // Reset form
+  // Reset add form
   const resetForm = useCallback(() => {
     setNewItemName("");
     setNewItemQuantity("1");
@@ -154,55 +59,47 @@ export default function Page() {
     setNameError("");
   }, []);
 
-  // Open modal
+  // Open add modal
   const handleOpenModal = useCallback(() => {
     resetForm();
     setModalVisible(true);
   }, [resetForm]);
 
-  // Close modal
+  // Close add modal
   const handleCloseModal = useCallback(() => {
     setModalVisible(false);
     resetForm();
   }, [resetForm]);
 
-  // Validate and save new item
-  const handleSaveItem = async () => {
-    // Validate name
+  // Save new item
+  const handleSaveItem = useCallback(async () => {
     if (!newItemName.trim()) {
       setNameError("Tên món không được để trống!");
       Alert.alert("Lỗi", "Vui lòng nhập tên món cần mua!");
       return;
     }
 
-    try {
-      const newGrocery: Grocery = {
-        id: 0, // Will be auto-generated
-        name: newItemName.trim(),
-        quantity: parseInt(newItemQuantity) || 1,
-        category: newItemCategory.trim(),
-        bought: false,
-        created_at: new Date(),
-      };
+    const success = await addGrocery({
+      name: newItemName.trim(),
+      quantity: parseInt(newItemQuantity) || 1,
+      category: newItemCategory.trim(),
+      bought: false,
+      created_at: new Date(),
+    });
 
-      // Insert into database
-      await createGrocery(db, newGrocery);
-
-      // Reload the list to get the new item with proper ID
-      await loadGroceries();
-
-      // Close modal and reset form
+    if (success) {
       handleCloseModal();
-
-      // Show success message
       Alert.alert("Thành công", "Đã thêm món vào danh sách!");
-    } catch (error) {
-      console.error("Error creating grocery:", error);
-      Alert.alert("Lỗi", "Không thể thêm món. Vui lòng thử lại!");
     }
-  };
+  }, [
+    newItemName,
+    newItemQuantity,
+    newItemCategory,
+    addGrocery,
+    handleCloseModal,
+  ]);
 
-  // Open edit modal (optimized with useCallback)
+  // Open edit modal
   const handleOpenEditModal = useCallback((item: Grocery) => {
     setEditingItem(item);
     setEditItemName(item.name);
@@ -212,7 +109,7 @@ export default function Page() {
     setEditModalVisible(true);
   }, []);
 
-  // Close edit modal (optimized with useCallback)
+  // Close edit modal
   const handleCloseEditModal = useCallback(() => {
     setEditModalVisible(false);
     setEditingItem(null);
@@ -222,9 +119,8 @@ export default function Page() {
     setEditNameError("");
   }, []);
 
-  // Validate and update item
-  const handleUpdateItem = async () => {
-    // Validate name
+  // Update item
+  const handleUpdateItem = useCallback(async () => {
     if (!editItemName.trim()) {
       setEditNameError("Tên món không được để trống!");
       Alert.alert("Lỗi", "Vui lòng nhập tên món cần mua!");
@@ -233,149 +129,85 @@ export default function Page() {
 
     if (!editingItem) return;
 
-    try {
-      const updatedGrocery: Grocery = {
-        ...editingItem,
-        name: editItemName.trim(),
-        quantity: parseInt(editItemQuantity) || 1,
-        category: editItemCategory.trim(),
-      };
+    const success = await updateGroceryItem({
+      ...editingItem,
+      name: editItemName.trim(),
+      quantity: parseInt(editItemQuantity) || 1,
+      category: editItemCategory.trim(),
+    });
 
-      // Update in database
-      await updateGrocery(db, updatedGrocery);
-
-      // Update local state
-      setGroceries((prev) =>
-        prev.map((item) =>
-          item.id === updatedGrocery.id ? updatedGrocery : item
-        )
-      );
-
-      // Close modal
+    if (success) {
       handleCloseEditModal();
-
-      // Show success message
       Alert.alert("Thành công", "Đã cập nhật món!");
-    } catch (error) {
-      console.error("Error updating grocery:", error);
-      Alert.alert("Lỗi", "Không thể cập nhật món. Vui lòng thử lại!");
     }
-  };
+  }, [
+    editItemName,
+    editItemQuantity,
+    editItemCategory,
+    editingItem,
+    updateGroceryItem,
+    handleCloseEditModal,
+  ]);
 
-  // Import groceries from API
-  const handleImportFromAPI = useCallback(async () => {
-    setImporting(true);
-    setImportError(null);
-
-    try {
-      // Call API endpoint (example: JSONPlaceholder todos as grocery items)
-      const response = await fetch(
-        "https://67e1773958cc6bf78525efdf.mockapi.io/api/v1/22657391_VoTrieuAn"
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const apiData = await response.json();
-
-      // Map API response to Grocery format
-      // API returns: { id, name, quantity, completed }
-      const apiGroceries: Grocery[] = apiData.map((item: any) => ({
-        id: 0, // Will be auto-generated by SQLite
-        name: item.name || "Unknown Item",
-        quantity: parseInt(item.quantity) || 1, // Use quantity from API
-        category: "Imported",
-        bought: item.completed === true, // Map completed to bought
-        created_at: new Date(),
-      }));
-
-      // Get current groceries to check for duplicates
-      const existingNames = new Set(
-        groceries.map((g) => g.name.toLowerCase().trim())
-      );
-
-      // Filter out duplicates (check by name)
-      const newGroceries = apiGroceries.filter(
-        (item) => !existingNames.has(item.name.toLowerCase().trim())
-      );
-
-      if (newGroceries.length === 0) {
-        Alert.alert(
-          "Thông báo",
-          "Không có món mới để import. Tất cả các món đã tồn tại trong danh sách."
-        );
-        return;
-      }
-
-      // Insert new groceries into database
-      for (const item of newGroceries) {
-        await createGrocery(db, item);
-      }
-
-      // Reload the list to get the new items with proper IDs
-      await loadGroceries();
-
-      // Show success message
-      Alert.alert(
-        "Thành công",
-        `Đã import ${newGroceries.length} món mới từ API!`
-      );
-    } catch (error) {
-      console.error("Error importing from API:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Không xác định";
-      setImportError(errorMessage);
-      Alert.alert(
-        "Lỗi",
-        `Không thể import từ API: ${errorMessage}\n\nVui lòng kiểm tra kết nối mạng và thử lại.`
-      );
-    } finally {
-      setImporting(false);
-    }
-  }, [groceries, db]);
-
-  // Empty state component (optimized with useCallback)
+  // Enhanced empty state
   const renderEmptyState = useCallback(
     () => (
       <View className="flex-1 items-center justify-center p-8">
-        <Text className="text-lg text-gray-500 text-center">
+        <Icon source="cart-outline" size={80} color="#cbd5e1" />
+        <Text className="text-xl font-bold text-gray-600 mt-4 text-center">
           {searchQuery.trim()
-            ? `Không tìm thấy món nào với "${searchQuery}"`
-            : "Danh sách trống, thêm món cần mua nhé!"}
+            ? `Không tìm thấy "${searchQuery}"`
+            : "Danh sách trống"}
         </Text>
+        <Text className="text-sm text-gray-500 mt-2 text-center">
+          {searchQuery.trim()
+            ? "Thử tìm kiếm với từ khóa khác"
+            : "Thêm món cần mua bằng nút + bên dưới"}
+        </Text>
+        {!searchQuery.trim() && (
+          <Button
+            mode="contained"
+            onPress={handleOpenModal}
+            className="mt-6"
+            icon="plus"
+          >
+            Thêm món đầu tiên
+          </Button>
+        )}
       </View>
     ),
-    [searchQuery]
+    [searchQuery, handleOpenModal]
   );
 
   // Loading state
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center">
+      <View className="flex-1 items-center justify-center bg-gray-50">
         <ActivityIndicator size="large" color="#60a5fa" />
+        <Text className="text-gray-600 mt-4">Đang tải danh sách...</Text>
       </View>
     );
   }
 
   return (
     <View className="flex-1">
-      <View className="bg-blue-400 p-4">
+      {/* Header */}
+      <View className="bg-blue-400 p-4 shadow-lg">
         <Text className="text-2xl font-bold text-white text-center">
           DANH SÁCH MUA SẮM
         </Text>
-        <Text className="text-sm text-white text-center mt-1">
-          {groceries.length} món • {groceries.filter((g) => g.bought).length} đã
-          mua
+        <Text className="text-sm text-white text-center mt-1 opacity-90">
+          {filteredGroceries.length} món •{" "}
+          {filteredGroceries.filter((g) => g.bought).length} đã mua
         </Text>
 
         {/* Import Button */}
         <View className="mt-3">
           <Button
             mode="contained"
-            onPress={handleImportFromAPI}
+            onPress={importFromAPI}
             loading={importing}
-            disabled={importing}
+            disabled={importing || loading}
             icon="download"
             buttonColor="#10b981"
             textColor="#ffffff"
@@ -402,15 +234,16 @@ export default function Page() {
         )}
       </View>
 
+      {/* List */}
       <FlatList
         data={filteredGroceries}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <GroceryItem
             data={item}
-            onToggleBought={handleToggleBought}
+            onToggleBought={toggleBought}
             onEdit={handleOpenEditModal}
-            onDelete={(id) => handleDeleteGrocery(id, item.name)}
+            onDelete={(id) => deleteGroceryItem(id, item.name)}
           />
         )}
         ListEmptyComponent={renderEmptyState}
@@ -424,7 +257,10 @@ export default function Page() {
       {/* Floating Action Button */}
       <TouchableOpacity
         onPress={handleOpenModal}
-        className="absolute bottom-6 right-6 bg-blue-500 w-14 h-14 rounded-full items-center justify-center shadow-lg"
+        disabled={loading || importing}
+        className={`absolute bottom-6 right-6 w-14 h-14 rounded-full items-center justify-center shadow-lg ${
+          loading || importing ? "bg-gray-400" : "bg-blue-500"
+        }`}
         style={{
           elevation: 8,
           shadowColor: "#000",
@@ -460,7 +296,6 @@ export default function Page() {
 
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="gap-4">
-                  {/* Name Input */}
                   <View>
                     <TextInput
                       label="Tên món *"
@@ -480,7 +315,6 @@ export default function Page() {
                     ) : null}
                   </View>
 
-                  {/* Quantity Input */}
                   <TextInput
                     label="Số lượng"
                     value={newItemQuantity}
@@ -490,7 +324,6 @@ export default function Page() {
                     placeholder="Mặc định: 1"
                   />
 
-                  {/* Category Input */}
                   <TextInput
                     label="Danh mục (tùy chọn)"
                     value={newItemCategory}
@@ -500,7 +333,6 @@ export default function Page() {
                   />
                 </View>
 
-                {/* Action Buttons */}
                 <View className="flex-row gap-3 mt-6">
                   <Button
                     mode="outlined"
@@ -513,6 +345,7 @@ export default function Page() {
                     mode="contained"
                     onPress={handleSaveItem}
                     style={{ flex: 1 }}
+                    disabled={loading}
                   >
                     Lưu
                   </Button>
@@ -547,7 +380,6 @@ export default function Page() {
 
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View className="gap-4">
-                  {/* Name Input */}
                   <View>
                     <TextInput
                       label="Tên món *"
@@ -567,7 +399,6 @@ export default function Page() {
                     ) : null}
                   </View>
 
-                  {/* Quantity Input */}
                   <TextInput
                     label="Số lượng"
                     value={editItemQuantity}
@@ -577,7 +408,6 @@ export default function Page() {
                     placeholder="Mặc định: 1"
                   />
 
-                  {/* Category Input */}
                   <TextInput
                     label="Danh mục (tùy chọn)"
                     value={editItemCategory}
@@ -587,7 +417,6 @@ export default function Page() {
                   />
                 </View>
 
-                {/* Action Buttons */}
                 <View className="flex-row gap-3 mt-6">
                   <Button
                     mode="outlined"
@@ -600,6 +429,7 @@ export default function Page() {
                     mode="contained"
                     onPress={handleUpdateItem}
                     style={{ flex: 1 }}
+                    disabled={loading}
                   >
                     Cập nhật
                   </Button>
