@@ -13,7 +13,12 @@ import {
 } from "react-native";
 import { useSQLiteContext } from "expo-sqlite";
 import { Grocery } from "@/types/grocery.type";
-import { getAllGrocery, updateGrocery, createGrocery } from "@/dbs/db";
+import {
+  getAllGrocery,
+  updateGrocery,
+  createGrocery,
+  deleteGrocery,
+} from "@/dbs/db";
 import GroceryItem from "@/compoents/GroceryItem";
 import { TextInput, Button, Searchbar } from "react-native-paper";
 
@@ -98,6 +103,43 @@ export default function Page() {
       }
     },
     [groceries, db]
+  );
+
+  // Delete grocery with confirmation (optimized with useCallback)
+  const handleDeleteGrocery = useCallback(
+    (id: number, name: string) => {
+      Alert.alert(
+        "Xác nhận xóa",
+        `Bạn có chắc chắn muốn xóa món "${name}" không?`,
+        [
+          {
+            text: "Hủy",
+            style: "cancel",
+          },
+          {
+            text: "Xóa",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                // Delete from database
+                await deleteGrocery(db, id);
+
+                // Update local state
+                setGroceries((prev) => prev.filter((item) => item.id !== id));
+
+                // Show success message
+                Alert.alert("Thành công", "Đã xóa món khỏi danh sách!");
+              } catch (error) {
+                console.error("Error deleting grocery:", error);
+                Alert.alert("Lỗi", "Không thể xóa món. Vui lòng thử lại!");
+              }
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    },
+    [db]
   );
 
   // Reset form
@@ -276,6 +318,7 @@ export default function Page() {
             data={item}
             onToggleBought={handleToggleBought}
             onEdit={handleOpenEditModal}
+            onDelete={(id) => handleDeleteGrocery(id, item.name)}
           />
         )}
         ListEmptyComponent={renderEmptyState}

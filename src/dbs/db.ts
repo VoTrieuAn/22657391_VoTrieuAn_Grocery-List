@@ -96,6 +96,17 @@ export const seedSampleGroceries = async (db: SQLiteDatabase) => {
   }
 };
 
+// DELETE
+export const deleteGrocery = async (db: SQLiteDatabase, id: number) => {
+  await db.runAsync(
+    `
+      DELETE FROM grocery_items
+      WHERE id = ?;
+    `,
+    [id]
+  );
+};
+
 // // DELETE (Soft Delete)
 // export const deleteTransaction = async (db: SQLiteDatabase, id: number) => {
 //   await db.runAsync(

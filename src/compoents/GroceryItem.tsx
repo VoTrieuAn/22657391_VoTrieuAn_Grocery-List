@@ -9,7 +9,7 @@ type Props = {
   onDelete?: (id: number) => void;
 };
 
-const GroceryItem = ({ data, onToggleBought, onEdit }: Props) => {
+const GroceryItem = ({ data, onToggleBought, onEdit, onDelete }: Props) => {
   const handleToggle = () => {
     if (onToggleBought) {
       onToggleBought(data.id, !data.bought);
@@ -19,6 +19,12 @@ const GroceryItem = ({ data, onToggleBought, onEdit }: Props) => {
   const handleEdit = () => {
     if (onEdit) {
       onEdit(data);
+    }
+  };
+
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete(data.id);
     }
   };
 
@@ -67,6 +73,12 @@ const GroceryItem = ({ data, onToggleBought, onEdit }: Props) => {
                   size={20}
                   onPress={handleEdit}
                   iconColor="#60a5fa"
+                />
+                <IconButton
+                  icon="delete"
+                  size={20}
+                  onPress={handleDelete}
+                  iconColor="#ef4444"
                 />
                 <Checkbox
                   status={data.bought ? "checked" : "unchecked"}
